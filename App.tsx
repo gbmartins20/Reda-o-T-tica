@@ -9,11 +9,11 @@ import HistoryView from './components/Views/HistoryView';
 import HelpModal from './components/Modals/HelpModal';
 import { Mission, Report, HistoryItem, HelpContent, Tab } from './types';
 import { generateMissionStatic, analyzeTextLocal, getRandomConnectives } from './utils/localLogic';
-import { generateMissionAI, analyzeTextAI } from './services/geminiService';
+import { generateMissionAI, analyzeTextAI } from './src/services/geminiService';
 import { TEMAS_STATIC, REPERTORIOS_STATIC } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
-import { supabase } from './services/supabase';
+import { supabase } from './src/services/supabase';
 
 export default function AppWrapper() {
   return (

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { PenTool, Sparkles, Loader2, Camera, AlertCircle } from 'lucide-react';
-import { transcribeImageAI } from '../../services/geminiService';
+import { transcribeImageAI } from '../../src/services/geminiService';
 
 interface EditorViewProps {
   text: string;
@@ -56,53 +56,53 @@ export default function EditorView({ text, setText, loading, onAnalyze }: Editor
 
       {loading ? (
         <div className="flex-1 bg-slate-800 rounded-lg flex flex-col items-center justify-center space-y-4 animate-pulse">
-           <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
-           <p className="text-slate-300 font-mono text-sm">A IA está corrigindo sua redação...</p>
-           <p className="text-slate-500 text-xs">Verificando 5 competências...</p>
+          <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+          <p className="text-slate-300 font-mono text-sm">A IA está corrigindo sua redação...</p>
+          <p className="text-slate-500 text-xs">Verificando 5 competências...</p>
         </div>
       ) : transcribing ? (
         <div className="flex-1 bg-slate-800 rounded-lg flex flex-col items-center justify-center space-y-4 animate-pulse">
-           <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-           <p className="text-slate-300 font-mono text-sm">Transcrevendo manuscrito...</p>
-           <p className="text-slate-500 text-xs">A IA está lendo sua letra...</p>
+          <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
+          <p className="text-slate-300 font-mono text-sm">Transcrevendo manuscrito...</p>
+          <p className="text-slate-500 text-xs">A IA está lendo sua letra...</p>
         </div>
       ) : (
         <div className="relative flex-1 flex flex-col gap-2">
-           {transcribeError && (
-             <div className="bg-red-900/50 text-red-200 text-xs p-2 rounded border border-red-500/50 flex items-center gap-2">
-               <AlertCircle className="w-3 h-3"/>
-               {transcribeError}
-             </div>
-           )}
-           <textarea
+          {transcribeError && (
+            <div className="bg-red-900/50 text-red-200 text-xs p-2 rounded border border-red-500/50 flex items-center gap-2">
+              <AlertCircle className="w-3 h-3" />
+              {transcribeError}
+            </div>
+          )}
+          <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="flex-1 w-full bg-slate-800 text-slate-100 p-4 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono text-sm leading-relaxed"
             placeholder="Comece sua redação aqui ou escaneie uma foto..."
             spellCheck={false}
           />
-          
+
           <div className="absolute bottom-4 right-4 z-10">
-             <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                ref={fileInputRef}
-                onChange={handleFileChange}
-             />
-             <button 
-               onClick={() => fileInputRef.current?.click()}
-               className="bg-slate-700/80 hover:bg-purple-600/80 backdrop-blur-sm text-white p-3 rounded-full shadow-lg transition-all"
-               title="Escanear Manuscrito (IA)"
-             >
-               <Camera className="w-5 h-5" />
-             </button>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-slate-700/80 hover:bg-purple-600/80 backdrop-blur-sm text-white p-3 rounded-full shadow-lg transition-all"
+              title="Escanear Manuscrito (IA)"
+            >
+              <Camera className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
 
       <div className="mt-4">
-        <button 
+        <button
           onClick={onAnalyze}
           disabled={text.length < 50 || loading || transcribing}
           className="w-full py-4 rounded-lg bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold shadow-lg flex items-center justify-center gap-2 text-lg active:scale-95 transition-transform"
