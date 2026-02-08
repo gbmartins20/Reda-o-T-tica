@@ -1,0 +1,7 @@
+{
+  "name": "Redação Tática",
+  "description": "A specialized tactical essay training app for public exams (PMRJ/ENEM) featuring AI-powered mission generation, correction, and handwriting recognition.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
