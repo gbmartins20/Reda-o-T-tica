@@ -118,8 +118,10 @@ function App() {
       resetState();
     } catch (err) {
       console.error(err);
-      setErrorMsg("Falha na comunicação com o QG. Usando backup analógico.");
-      handleNewMissionStatic();
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
+      setErrorMsg(`Falha na comunicação com o QG: ${errorMessage}`);
+      // Fallback only if it's a critical failure we can't recover from, but for now we want to see the error
+      // handleNewMissionStatic(); 
     } finally {
       setLoading(false);
     }
