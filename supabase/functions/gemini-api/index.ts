@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenerativeAI, SchemaType } from "https://esm.sh/@google/generative-ai@0.12.0";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -19,43 +18,63 @@ serve(async (req) => {
         }
 
         const { action, payload } = await req.json();
-        const genAI = new GoogleGenerativeAI(API_KEY);
+
+        // Helper to call Gemini API via REST
+        const callGemini = async (model: string, body: any) => {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Gemini API Error: ${response.status} - ${errText}`);
+            }
+
+            return await response.json();
+        };
 
         let result;
 
         if (action === 'generateMission') {
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const prompt = `Gere um tema de redação inédito e de alto nível de complexidade, voltado para concursos de carreiras policiais. O tema deve focar obrigatoriamente em dilemas éticos, problemas sociológicos ou segurança pública tangível. Retorne APENAS um objeto JSON.`;
 
-            // Using JSON mode with correct schema setup for the new SDK
-            const generationConfig = {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        eixo: { type: SchemaType.STRING },
-                        titulo: { type: SchemaType.STRING },
-                        frase: { type: SchemaType.STRING },
-                        repertorio: {
-                            type: SchemaType.OBJECT,
-                            properties: {
-                                fonte: { type: SchemaType.STRING },
-                                texto: { type: SchemaType.STRING }
+            const requestBody = {
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            eixo: { type: "STRING" },
+                            titulo: { type: "STRING" },
+                            frase: { type: "STRING" },
+                            repertorio: {
+                                type: "OBJECT",
+                                properties: {
+                                    fonte: { type: "STRING" },
+                                    texto: { type: "STRING" }
+                                }
                             }
                         }
                     }
                 }
             };
 
-            const resultGen = await model.generateContent({
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig
-            });
-            result = JSON.parse(resultGen.response.text());
+            const data = await callGemini('gemini-1.5-flash', requestBody);
+            // Parse the JSON string from the response text
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                const text = data.candidates[0].content.parts[0].text;
+                result = JSON.parse(text);
+            } else {
+                throw new Error('Invalid response format from Gemini');
+            }
 
         } else if (action === 'analyzeText') {
             const { text, mission } = payload;
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
             const prompt = `Você é um corretor rigoroso de redação para concursos (PMRJ/ENEM).
       Analise a seguinte redação com base no tema: "${mission.tema.titulo}".
@@ -69,54 +88,63 @@ serve(async (req) => {
       Texto do aluno:
       "${text}"`;
 
-            const generationConfig = {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        score: { type: SchemaType.NUMBER },
-                        usedInter: {
-                            type: SchemaType.ARRAY,
-                            items: {
-                                type: SchemaType.OBJECT,
-                                properties: {
-                                    word: { type: SchemaType.STRING },
-                                    used: { type: SchemaType.BOOLEAN }
+            const requestBody = {
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            score: { type: "NUMBER" },
+                            usedInter: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        word: { type: "STRING" },
+                                        used: { type: "BOOLEAN" }
+                                    }
                                 }
-                            }
-                        },
-                        paragraphs: { type: SchemaType.NUMBER },
-                        violation: { type: SchemaType.STRING, nullable: true },
-                        feedback: { type: SchemaType.STRING },
-                        checklist_c5: { type: SchemaType.BOOLEAN }
+                            },
+                            paragraphs: { type: "NUMBER" },
+                            violation: { type: "STRING", nullable: true },
+                            feedback: { type: "STRING" },
+                            checklist_c5: { type: "BOOLEAN" }
+                        }
                     }
                 }
             };
 
-            const resultGen = await model.generateContent({
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig
-            });
-            result = JSON.parse(resultGen.response.text());
+            const data = await callGemini('gemini-1.5-pro', requestBody);
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                const text = data.candidates[0].content.parts[0].text;
+                result = JSON.parse(text);
+            } else {
+                throw new Error('Invalid response format from Gemini');
+            }
 
         } else if (action === 'transcribeImage') {
             const { base64Image } = payload;
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
             const prompt = "Transcreva este texto manuscrito exatamente como ele aparece. Se houver partes ilegíveis, marque como [ilegível]. Mantenha a pontuação e estrutura de parágrafos original.";
 
             // Extract base64 part if it contains data URI scheme
             const base64Data = base64Image.includes('base64,') ? base64Image.split('base64,')[1] : base64Image;
 
-            const resultGen = await model.generateContent([
-                prompt,
-                {
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: "image/jpeg",
-                    },
-                },
-            ]);
-            result = resultGen.response.text();
+            const requestBody = {
+                contents: [{
+                    parts: [
+                        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+                        { text: prompt }
+                    ]
+                }]
+            };
+
+            const data = await callGemini('gemini-1.5-pro', requestBody);
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                result = data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error('Invalid response format from Gemini');
+            }
         } else {
             throw new Error('Invalid action');
         }
