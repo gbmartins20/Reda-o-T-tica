@@ -119,9 +119,13 @@ function App() {
     } catch (err) {
       console.error(err);
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido";
-      setErrorMsg(`Falha na comunicação com o QG: ${errorMessage}`);
-      // Fallback only if it's a critical failure we can't recover from, but for now we want to see the error
-      // handleNewMissionStatic(); 
+
+      // DEBUG: Show which project we are trying to reach
+      // @ts-ignore
+      const supabaseUrl = supabase['supabaseUrl'] || "unknown";
+      const projectId = supabaseUrl.split('.')[0].replace('https://', '');
+
+      setErrorMsg(`Falha (Proj: ${projectId}): ${errorMessage}`);
     } finally {
       setLoading(false);
     }

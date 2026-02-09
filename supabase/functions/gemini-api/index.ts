@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@0.1.1";
+import { GoogleGenerativeAI, SchemaType } from "https://esm.sh/@google/generative-ai@0.12.0";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+    // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
@@ -18,40 +19,44 @@ serve(async (req) => {
         }
 
         const { action, payload } = await req.json();
-        const genAI = new GoogleGenAI({ apiKey: API_KEY });
+        const genAI = new GoogleGenerativeAI(API_KEY);
 
         let result;
-        const modelId = 'gemini-1.5-flash'; // Usando modelo estável compatível
 
         if (action === 'generateMission') {
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const prompt = `Gere um tema de redação inédito e de alto nível de complexidade, voltado para concursos de carreiras policiais. O tema deve focar obrigatoriamente em dilemas éticos, problemas sociológicos ou segurança pública tangível. Retorne APENAS um objeto JSON.`;
 
-            const response = await genAI.models.generateContent({
-                model: modelId,
-                contents: { role: 'user', parts: [{ text: prompt }] },
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            eixo: { type: Type.STRING },
-                            titulo: { type: Type.STRING },
-                            frase: { type: Type.STRING },
-                            repertorio: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    fonte: { type: Type.STRING },
-                                    texto: { type: Type.STRING }
-                                }
+            // Using JSON mode with correct schema setup for the new SDK
+            const generationConfig = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        eixo: { type: SchemaType.STRING },
+                        titulo: { type: SchemaType.STRING },
+                        frase: { type: SchemaType.STRING },
+                        repertorio: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                fonte: { type: SchemaType.STRING },
+                                texto: { type: SchemaType.STRING }
                             }
                         }
                     }
                 }
+            };
+
+            const resultGen = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig
             });
-            result = JSON.parse(response.text());
+            result = JSON.parse(resultGen.response.text());
 
         } else if (action === 'analyzeText') {
             const { text, mission } = payload;
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+
             const prompt = `Você é um corretor rigoroso de redação para concursos (PMRJ/ENEM).
       Analise a seguinte redação com base no tema: "${mission.tema.titulo}".
       
@@ -64,49 +69,54 @@ serve(async (req) => {
       Texto do aluno:
       "${text}"`;
 
-            const response = await genAI.models.generateContent({
-                model: 'gemini-1.5-pro', // Usando modelo Pro para análise
-                contents: { role: 'user', parts: [{ text: prompt }] },
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                            score: { type: Type.NUMBER },
-                            usedInter: {
-                                type: Type.ARRAY,
-                                items: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        word: { type: Type.STRING },
-                                        used: { type: Type.BOOLEAN }
-                                    }
+            const generationConfig = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        score: { type: SchemaType.NUMBER },
+                        usedInter: {
+                            type: SchemaType.ARRAY,
+                            items: {
+                                type: SchemaType.OBJECT,
+                                properties: {
+                                    word: { type: SchemaType.STRING },
+                                    used: { type: SchemaType.BOOLEAN }
                                 }
-                            },
-                            paragraphs: { type: Type.NUMBER },
-                            violation: { type: Type.STRING, nullable: true },
-                            feedback: { type: Type.STRING },
-                            checklist_c5: { type: Type.BOOLEAN }
-                        }
+                            }
+                        },
+                        paragraphs: { type: SchemaType.NUMBER },
+                        violation: { type: SchemaType.STRING, nullable: true },
+                        feedback: { type: SchemaType.STRING },
+                        checklist_c5: { type: SchemaType.BOOLEAN }
                     }
                 }
+            };
+
+            const resultGen = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig
             });
-            result = JSON.parse(response.text());
+            result = JSON.parse(resultGen.response.text());
 
         } else if (action === 'transcribeImage') {
             const { base64Image } = payload;
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
             const prompt = "Transcreva este texto manuscrito exatamente como ele aparece. Se houver partes ilegíveis, marque como [ilegível]. Mantenha a pontuação e estrutura de parágrafos original.";
 
-            const response = await genAI.models.generateContent({
-                model: 'gemini-1.5-pro',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                        { text: prompt }
-                    ]
-                }
-            });
-            result = response.text();
+            // Extract base64 part if it contains data URI scheme
+            const base64Data = base64Image.includes('base64,') ? base64Image.split('base64,')[1] : base64Image;
+
+            const resultGen = await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: "image/jpeg",
+                    },
+                },
+            ]);
+            result = resultGen.response.text();
         } else {
             throw new Error('Invalid action');
         }
@@ -117,7 +127,7 @@ serve(async (req) => {
 
     } catch (error) {
         console.error(error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
